@@ -1,19 +1,45 @@
-## Penjelasan Model LSTM (Long Short-Term Memory) dalam SolarCast
+# SolarCast: Prediksi Output Panel Surya Berbasis LSTM
 
-Proyek SolarCast menggunakan algoritma Long Short-Term Memory (LSTM), sebuah varian tingkat lanjut dari Recurrent Neural Network (RNN) yang dirancang khusus untuk memodelkan data berbasis deret waktu (time-series).
+## 1. Deskripsi Proyek
+SolarCast adalah proyek implementasi Deep Learning sekuensial yang bertujuan untuk memprediksi output daya listrik (DC Power) dari pembangkit listrik tenaga surya. Proyek ini membandingkan pendekatan pemodelan Linear Regression, Multilayer Perceptron (MLP), dan Long Short-Term Memory (LSTM) untuk membuktikan bahwa retensi memori temporal sangat krusial dalam meramal fluktuasi energi surya secara presisi guna mendukung stabilitas smart grid.
 
-### Mengapa Menggunakan LSTM?
-Output daya dari panel surya sangat bergantung pada pola cuaca yang bersifat sekuensial dan memiliki siklus harian (misalnya, pergerakan suhu dan radiasi dari pagi hingga malam). Model konvensional seperti Linear Regression atau Multilayer Perceptron (MLP) memproses data secara statis; mereka hanya melihat kondisi cuaca pada satu jam tertentu tanpa memahami urutan kejadian sebelumnya.
+## 2. Informasi Dataset
+Proyek ini menggunakan dataset publik "Solar Power Generation Data" (Plant 1) dari Kaggle.
+* Resolusi Data: Data berinterval 15 menit yang diubah (resampling) menjadi skala per jam (hourly).
+* Fitur Input (X): Ambient Temperature (Suhu udara luar), Module Temperature (Suhu permukaan panel), dan Irradiation (Tingkat radiasi matahari).
+* Variabel Target (Y): DC_POWER (Total daya listrik arus searah yang dihasilkan dalam satuan Watt).
 
-LSTM memecahkan masalah tersebut melalui mekanisme *memory cell* dan *gates* (gerbang informasi). Algoritma ini mampu "mengingat" tren cuaca historis. Dalam proyek ini, LSTM dikonfigurasi untuk melihat rekam jejak data selama 24 jam ke belakang (*lookback window*) guna memprediksi output daya pada satu jam ke depan dengan tingkat presisi yang tinggi.
+## 3. Arsitektur Model
+Model LSTM yang diusulkan dirancang agar efisien dalam menangkap pola temporal cuaca tanpa mengalami overfitting pada data skala menengah:
+* Input Layer: Menerima urutan data sekuensial dengan lookback window 24 jam ke belakang.
+* LSTM Layer: 1 lapisan yang terdiri dari 32 unit untuk mengekstraksi memori siklus waktu harian.
+* Regularization: Dropout sebesar 0.2 (20%) untuk menjaga model tetap tangguh saat menghadapi data cuaca baru.
+* Output Layer: Dense layer (1 unit neuron) tanpa fungsi aktivasi untuk menghasilkan tebakan regresi kontinu.
+* Konfigurasi Pelatihan: Optimizer Adam dan Loss Function Mean Squared Error (MSE).
 
-### Arsitektur Model
-Model LSTM dalam SolarCast dirancang agar ringan, efisien, dan kebal terhadap *overfitting* saat memproses data cuaca lokal:
+## 4. Panduan Instalasi dan Penggunaan
+Proyek ini dieksekusi di lingkungan Python (direkomendasikan Google Colab) menggunakan library pandas, numpy, tensorflow, dan scikit-learn.
 
-1. **Input Layer (Sliding Window):** Menerima struktur data 3 dimensi dengan format `(jumlah_sampel, time_steps, fitur)`. Model ini menggunakan `time_steps = 24` dan `fitur = 3` (Suhu Udara, Suhu Modul, dan Iradiasi).
-   
-2. **LSTM Layer (32 Unit):** Lapisan inti yang bertugas mengekstraksi pola temporal. Penggunaan 32 unit terbukti optimal dalam eksperimen ini untuk menyeimbangkan kecepatan komputasi dan kemampuan menangkap fluktuasi cuaca yang kompleks.
+Tahap krusial dalam penyiapan datanya adalah pembentukan sekuens menggunakan sliding window. Penting untuk diperhatikan bahwa parameter pengacakan (shuffle) harus dimatikan (shuffle=False) agar urutan kronologis waktu tetap utuh:
 
-3. **Dropout Layer (20%):** Berfungsi sebagai teknik regularisasi. Lapisan ini menonaktifkan 20% neuron secara acak pada setiap iterasi pelatihan untuk mencegah model menghafal data latih secara buta, sehingga model lebih tangguh saat dihadapkan pada data cuaca baru yang belum pernah dilihat sebelumnya.
+def create_sequences(X, y, time_steps):
+    X_seq, y_seq = [], []
+    for i in range(len(X) - time_steps):
+        X_seq.append(X[i:(i + time_steps)])
+        y_seq.append(y[i + time_steps])
+    return np.array(X_seq), np.array(y_seq)
 
-4. **Dense Layer (Output):** Lapisan akhir yang terdiri dari 1 unit neuron tanpa fungsi aktivasi pembatas. Lapisan ini mengagregasi seluruh informasi temporal dari lapisan sebelumnya menjadi satu nilai prediksi numerik kontinu, yaitu prediksi total daya listrik (DC Power) dalam satuan Watt.
+## 5. Hasil Evaluasi
+Evaluasi model membandingkan tingkat error dan akurasi pada data pengujian. Berikut adalah hasil performa akhir:
+
+| Model | MAE (Watt) | RMSE (Watt) | R2 Score |
+| :--- | :--- | :--- | :--- |
+| Linear Regression (Baseline) | 17865.02 | 24249.44 | 0.9067 |
+| Multilayer Perceptron (MLP) | 17602.51 | 24727.26 | 0.9030 |
+| LSTM (Proposed Model) | 15326.93 | 22806.55 | 0.9174 |
+
+Analisis: Model LSTM mencapai tingkat kesalahan terendah dan akurasi tertinggi dengan nilai R2 sebesar 0.9174. Kemampuan gerbang memori (gates) pada LSTM untuk menyimpan riwayat fluktuasi cuaca dari siklus 24 jam sebelumnya memungkinkannya mengungguli metode regresi konvensional yang memproses data per jam secara statis dan independen.
+
+## 6. Rencana Pengembangan
+* Integrasi IoT: Menggabungkan model dengan API cuaca atau sensor fisik secara real-time untuk menghasilkan prediksi yang dinamis setiap jamnya.
+* Optimasi Hiperparameter: Menguji lookback window yang lebih panjang (misalnya 48 atau 72 jam) dan mengeksplorasi arsitektur jaringan Bidirectional LSTM.
